@@ -84,7 +84,6 @@ class Homework:  # different from homework.Homework
         self.validated_attachments = [Attachment(d) for d in data['validated_attachments']]
         self.completion_time = (int(data['completion_time_value'] or '0'), data['completion_time_unit'])
         self.status = HomeworkStatus(data['status'])
-        print(data)
 
     def __repr__(self):
         return '<Homework id={!r} lesson={!r} teacher={!r} title={!r} issue_date={!r} due_date={!r} status={!r}>'.format(self.id, self.lesson, self.teacher, self.title, self.issue_date, self.due_date, self.status)

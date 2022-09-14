@@ -75,7 +75,6 @@ class StudentClient:
         self.account_disabled = user.pop('is_disabled')
         self.announcements_count = user.pop('announcements_count')
         self.features = user
-        print(self.id)
 
     async def activity(self, *, after: datetime = None, before: datetime = None):
         if after is None:

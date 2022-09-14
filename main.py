@@ -1,8 +1,6 @@
-from logging import exception
 import sys
 import asyncio
 import datetime
-import re
 from time import sleep
 from bs4 import BeautifulSoup
 import sqlite3
@@ -34,8 +32,6 @@ def connect():
 async def main():
     while True:
         sc = classcharts.StudentClient(ClassChartsCode, datetime.datetime(year=DOB[2], month=DOB[1], day=DOB[0]))
-        print('----')
-        print(await sc.badges())
         await getActivity(sc)
         await getHomework(sc)
         await sc.logout()
