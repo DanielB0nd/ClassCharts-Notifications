@@ -1,24 +1,16 @@
-import sys
-import asyncio
 import datetime
 from time import sleep
-from bs4 import BeautifulSoup
 import sqlite3
 import http.client, urllib
-sys.path.append("./classcharts")
-import classcharts
-
-
+#import api
+from api import GetBehaviour, GetDetentions, GetHomework, GetAnnouncements, GetBadges
 ### Settings ###
-ClassChartsCode='ENTER YOUR CODE'
-## Date, Month, Year ##F
-## 1-9 then double digits ##
-DOB=[1, 1, 1970]
+from config import data as config
 
 
 ## Pushover Notif ##
-APIKEY='YOUR API KEY'
-USERID='YOUR USER ID'
+APIKEY=config["apikey"]
+USERID=config["userid"]
 
 
 ## Database ##
@@ -29,12 +21,15 @@ def connect():
 
 
 ## CC ##
-async def main():
+def main():
     while True:
-        sc = classcharts.StudentClient(ClassChartsCode, datetime.datetime(year=DOB[2], month=DOB[1], day=DOB[0]))
-        await getActivity(sc)
-        await getHomework(sc)
-        await sc.logout()
+        getActivity()
+        getHomework()
+        getDetentions()
+        getAnnouncements()
+        getBadges()
+        checkDue()
+        print(f'Updated {datetime.datetime.now()}')
         sleep(30)
 
 ### Pushover notification ###
@@ -52,48 +47,112 @@ def notification(title,message):
 
 ## Functions ##
 
-async def getActivity(sc):
+def getActivity():
+    global data
+    activity = GetBehaviour(config["code"], config["dob"])
     db = connect()
-    array=(await sc.activity())
-    for a in array:
-        statement = f'SELECT * from activites WHERE id={a.id}'
+    for a in activity:
+        if activity[a]["polarity"] == "blank":
+            return
+        statement = f'SELECT * from activites WHERE id={activity[a]["id"]}'
         db[0].execute(statement)
         data= db[0].fetchone()
         if data != None:
             return
         else:
-            title=f'You were given a {a.type} {a.point_type} point'
-            message=f'In {a.lesson} by {a.teacher} for {a.reason} - {a.note}'
+            title=f'You were given a {activity[a]["polarity"]} {activity[a]["type"]} point'
+            message=f'In {activity[a]["lesson"]} by {activity[a]["teacher"]} for {activity[a]["reason"]} - {activity[a]["note"]}'
             notification(title,message)
-            if a.note==None:
-                a.note='Not Specified'
-            statement=f'INSERT INTO activites (id, type, score, reason, notes) VALUES ({a.id}, "{a.type}", {a.score}, "{a.reason}", "{a.note}")'
+            if activity[a]["note"]==None:
+                activity[a]["note"]='Not Specified'
+            statement=f'INSERT INTO activites (id) VALUES ({activity[a]["id"]}, "{activity[a]["type"]}", {activity[a]["score"]}, "{activity[a]["reason"]}", "{activity[a]["note"]}")'
             db[0].execute(statement)
             db[1].commit()
 
-async def getHomework(sc):
+def getHomework():
+    global data
+    homeworks = GetHomework(config["code"], config["dob"])
     db = connect()
-    array = await sc.homeworks()
     index=0
-    #while len(array)-1 > index:
-    for a in array:
-        statement = f'SELECT * from homework WHERE id={a.id}'
+    for h in homeworks:
+        statement = f'SELECT * from homework WHERE id={homeworks[h]["id"]}'
         db[0].execute(statement)
         data= db[0].fetchone()
         if data == None:
-            title=f'Homework set for {a.lesson} by {a.teacher}'
-            message=f'{a.title}'
+            title=f'Homework set for {homeworks[h]["lesson"]} by {homeworks[h]["teacher"]}'
+            message=f'{homeworks[h]["title"]}'
             notification(title,message) 
-            statement=f'INSERT INTO homework (id, title) VALUES ({a.id}, "{a.title}")'
+            statement=f'INSERT INTO homework (id, title) VALUES ({homeworks[h]["id"]}, "{homeworks[h]["title"]}")'
             db[0].execute(statement)
             db[1].commit()
 
+def getAnnouncements():
+    global data
+    annoucements=GetAnnouncements(config["code"], config["dob"])
+    db = connect()
+    for a in annoucements:
+        statement = f'SELECT * from annoucements WHERE id={annoucements[a]["id"]}'
+        db[0].execute(statement)
+        data= db[0].fetchone()
+        if data == None:
+            title=f'Announcement from {annoucements[a]["teacher"]}'
+            message=f'{annoucements[a]["title"]}'
+            notification(title,message) 
+            statement=f'INSERT INTO annoucements (id) VALUES ({annoucements[a]["id"]})'
+            db[0].execute(statement)
+            db[1].commit()        
 
+def getBadges():
+    global data
+    badges=GetBadges(config["code"], config["dob"])
+    db = connect()
+    for b in badges:
+        statement = f'SELECT * from badges WHERE id={badges[b]["id"]}'
+        db[0].execute(statement)
+        data= db[0].fetchone()
+        if data == None:
+            title=f'You were given a {badges[b]["name"]} badge'
+            message=f'You now have {badges[b]["pupil_badges"]}'
+            notification(title,message) 
+            statement=f'INSERT INTO badges (id) VALUES ({badges[b]["id"]})'
+            db[0].execute(statement)
+            db[1].commit()        
 
+def getDetentions():
+    global data
+    db = connect()    
+    detentions = GetDetentions(config["code"], config["dob"])
+    for d in detentions:
+        statement = f'SELECT * from detentions WHERE id={detentions[d]["id"]}'
+        db[0].execute(statement)
+        data= db[0].fetchone()
+        if data == None:
+            title=f'Detention for {detentions[d]["reason"]}'
+            message=f'On the {detentions[d]["date_set"]} by {detentions[d]["teacher"]}'
+            notification(title,message) 
+            statement=f'INSERT INTO detentions (id) VALUES ({detentions[d]["id"]}")'
+            db[0].execute(statement)
+            db[1].commit()
 
-
-
+def checkDue():
+    global data
+    homeworks = GetHomework(config["code"], config["dob"])
+    db=connect()
+    now = datetime.datetime.now()
+    for h in homeworks:
+        statement = f'SELECT * from due WHERE id={homeworks[h]["id"]}'
+        db[0].execute(statement)
+        data= db[0].fetchone()
+        if data is None and homeworks[h]["done"] == 'no' :
+            time_of_timestamp = datetime.datetime.fromisoformat(str(homeworks[h]["due_date"]))
+            time_diff = now - time_of_timestamp
+            if time_diff <= datetime.timedelta(days=1) and time_of_timestamp <= datetime.datetime.now() and homeworks[h]["done"] is not True:
+                title=f'Homework due today'
+                message=f'You have {homeworks[h]["lesson"]} homework due in today'
+                notification(title,message)
+                statement=f'INSERT INTO due (id) VALUES ({homeworks[h]["id"]})'
+                db[0].execute(statement)
+                db[1].commit()
+    
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    loop.run_until_complete(main())
-    loop.close()
+    main()
