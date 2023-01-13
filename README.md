@@ -1,4 +1,4 @@
-# ClassChartsNotif
+# ClassCharts-Notifications
 
 Requirements:
   BS4
