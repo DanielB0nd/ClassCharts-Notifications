@@ -65,7 +65,7 @@ def getActivity():
             notification(title,message)
             if activity[a]["note"]==None:
                 activity[a]["note"]='Not Specified'
-            statement=f'INSERT INTO activites (id) VALUES ({activity[a]["id"]}, "{activity[a]["type"]}", {activity[a]["score"]}, "{activity[a]["reason"]}", "{activity[a]["note"]}")'
+            statement=f'INSERT INTO activites (id) VALUES ({activity[a]["id"]})'
             db[0].execute(statement)
             db[1].commit()
 
